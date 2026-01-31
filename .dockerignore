@@ -1,0 +1,12 @@
+# Ignore the data volumes
+data/
+
+# Ignore environment secrets
+.env
+
+# Ignore python cache
+__pycache__/
+*.pyc
+
+# Ignore git history
+.git/

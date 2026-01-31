@@ -1,0 +1,16 @@
+# Secrets
+.env
+.env.local
+secrets/
+
+# Python Junk
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Dagster Storage
+data/
+dagster_home/
+storage/
+logs/

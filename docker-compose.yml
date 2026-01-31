@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # THE DATA LAKE (Object Storage)
+  minio:
+    image: minio/minio:latest
+    container_name: lake_minio
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console UI
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASS}
+    volumes:
+      - ./data/minio:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - trade-net
+
+  # THE WAREHOUSE (Time-Series DB)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: lake_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: trading_lake
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - trade-net
+
+  # THE ORCHESTRATOR (Dagster UI)
+  dagster_webserver:
+    build: .
+    container_name: lake_ui
+    restart: always
+    environment:
+      - DAGSTER_HOME=/opt/dagster/app
+      - DAGSTER_POSTGRES_USER=${DB_USER}
+      - DAGSTER_POSTGRES_PASSWORD=${DB_PASS}
+      - DAGSTER_POSTGRES_DB=trading_lake
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ROOT_USER=${MINIO_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_PASS}
+      - TELEGRAM_BOT_TOKEN
+      - TELEGRAM_CHAT_ID
+    volumes:
+      - ./:/opt/dagster/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "3300:3000"
+    command: dagster-webserver -h 0.0.0.0 -p 3000 -f repository.py
+    depends_on:
+      - timescaledb
+      - minio
+    networks:
+      - trade-net
+
+  dagster_daemon:
+    build: .
+    container_name: lake_orchestrator
+    restart: always
+    environment:
+      - DAGSTER_HOME=/opt/dagster/app
+      - DAGSTER_POSTGRES_USER=${DB_USER}
+      - DAGSTER_POSTGRES_PASSWORD=${DB_PASS}
+      - DAGSTER_POSTGRES_DB=trading_lake
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ROOT_USER=${MINIO_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_PASS}
+      - TELEGRAM_BOT_TOKEN
+      - TELEGRAM_CHAT_ID
+    volumes:
+      - ./:/opt/dagster/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: dagster-daemon run -f repository.py
+    depends_on:
+      - timescaledb
+      - minio
+    networks:
+      - trade-net
+
+  # THE FRONT OFFICE (Business Intelligence)
+  metabase:
+    image: metabase/metabase:latest
+    container_name: lake_bi
+    restart: always
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    ports:
+      - "3005:3000"
+    volumes:
+      - ./data/metabase:/metabase-data
+    networks:
+      - trade-net
+    depends_on:
+      - timescaledb
+
+networks:
+  trade-net:
+    driver: bridge

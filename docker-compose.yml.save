@@ -1,0 +1,72 @@
+services:
+  # 1. THE DATA LAKE (Object Storage)
+  minio:
+    image: minio/minio:latest
+    container_name: lake_minio
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console UI
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASS}
+    volumes:
+      - ./data/minio:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - trade-net
+
+  # 2. THE WAREHOUSE (Time-Series DB)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: lake_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: trading_lake
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - trade-net
+
+  # 3. THE ORCHESTRATOR (Dagster)
+  dagster_daemon:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: lake_orchestrator
+    environment:
+      - DAGSTER_POSTGRES_USER=${DB_USER}
+      - DAGSTER_POSTGRES_PASSWORD=${DB_PASS}
+      - DAGSTER_POSTGRES_DB=trading_lake
+      - MINIO_ROOT_USER=${MINIO_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_PASS}
+      - MINIO_ENDPOINT=lake_minio:9000
+    volumes:
+      - ./orchestrator:/opt/dagster/app
+    depends_on:
+      - timescaledb
+    networks:
+      - trade-net
+    command: dagster-daemon run -f repository.py
+
+  dagster_webserver:
+    build:
+      context: .
+      dockerfile: ./orchestrator/Dockerfile
+    container_name: lake_ui
+    
+    entrypoint: dagster-webserver -h 0.0.0.0 -p 3000 -f repository.py
+    ports:
+      - "3300:3000"
+    volumes:
+      - ./orchestrator:/opt/dagster/app
+    depends_on:
+      - timescaledb
+    networks:
+      - trade-net
+
+networks:
+  trade-net:
+    driver: bridge
