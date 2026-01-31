@@ -45,6 +45,7 @@ Host terra
     HostName 100.xx.xx.xx      # Tailscale IP
     User earthen
     LocalForward 3000 127.0.0.1:3008
+```
 
 ---
 
