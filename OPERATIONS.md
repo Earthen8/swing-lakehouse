@@ -24,14 +24,27 @@ The system uses a "Split Access" architecture for security.
 * **Use for:** Manually triggering runs, debugging logs, changing assets.
 * **Security:** Hidden behind a firewall. You **must** use an SSH tunnel to access it.
 
-#### **How to Access Dagster:**
-1.  **Open Terminal** on main local laptop (Asus).
-2.  **Run the Tunnel Command:**
+#### **Dagster Access Method:**
+The primary workstation is configured to automatically establish the port forwarding tunnel upon connection.
+
+1.  **Open Terminal:**
+    Run the standard connection command:
     ```bash
-    # Maps Server Port 3008 (Dagster) -> Laptop Port 3000
-    ssh -L 3000:127.0.0.1:3008 earthen@terra
+    ssh terra
     ```
-3.  **Open Browser:** Go to [http://localhost:3000](http://localhost:3000).
+    *(This command automatically maps Server Port 3008 -> Local Port 3000).*
+
+2.  **Open Browser:**
+    Navigate to [http://localhost:3000](http://localhost:3000).
+
+#### **Configuration Reference (`~/.ssh/config`)**
+For reference, the automatic tunneling is handled via the SSH configuration file on the client machine:
+
+```text
+Host terra
+    HostName 100.xx.xx.xx      # Tailscale IP
+    User earthen
+    LocalForward 3000 127.0.0.1:3008
 
 ---
 
